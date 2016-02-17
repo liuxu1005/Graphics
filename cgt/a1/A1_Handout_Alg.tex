@@ -1,0 +1,136 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.75in]{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   % ... or a4paper or a5paper or ... 
+%\geometry{landscape}                % Activate for for rotated page geometry
+%\usepackage[parfill]{parskip}    % Activate to begin paragraphs with an empty line rather than an indent
+\setlength{\columnsep}{1cm}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{fullpage}
+\usepackage[usenames]{color}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{framed}
+
+\definecolor{light-gray}{gray}{0.45}
+\titleformat{\section}
+{\color{black}\normalfont\huge\bfseries}
+{\color{black}\thesection}{1em}{}
+
+\titleformat{\subsection}
+{\color{light-gray}\normalfont\Large\bfseries}
+{\color{light-gray}\thesubsection}{1em}{}
+
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+
+\title{\Huge{\bf Algorithm 1: Shapes}}
+\author{Comp175: Computer Graphics -- Spring 2016}
+\date{Due:  {\bf Monday February 8} at 11:59pm}                                           % Activate to display a given date or no date
+
+\begin{document}
+\maketitle
+%\section{}
+%\subsection{}
+
+\begin{verbatim}
+Your Names: ___Yuval Ben-Hayun & Xu Liu__
+
+            _____________________________
+
+Your CS Logins: ____ybenha01_____________
+
+                ________xliu10_______________\end{verbatim}
+
+\section{Instructions}
+Complete this assignment only with your teammate. You may use a
+calculator or computer algebra system. All your answers should be given in simplest form.
+When a numerical answer is required, provide a reduced fraction (i.e. 1/3) or at least three
+decimal places (i.e. 0.333). Show all work; write your answers on this sheet. This algorithm handout is worth 2\% of your final grade for the class.
+
+
+\section{Cube}
+ {\bf [1 point]} Take a look at one face of the cube. Change the tessellation parameter. How do the number of small squares against one edge correspond to the tessellation parameter?
+
+\begin{framed}
+ 
+  $N_{squares}$ = segementsX or segementsY
+\vspace{6em}
+\end{framed}
+{\bf [1 point]} Imagine a unit cube at the origin with tessellation parameter 2. Its front face lies in the +XY plane. What are the normal vectors that correspond with each of the eight triangles that make up this face? (Note: when asked for a normal, you should always give a normalized vector, meaning a vector of length one.)
+\begin{framed}
+(0, 0, +/- 1) depends on which face you are looking at.
+\vspace{6em}
+\end{framed}
+
+
+\section{Cylinder}
+{\bf [1.5 points]} The caps of the cylinder are regular polygons with $N$ sides, where $N$'s value is determined by parameter 2 ($p_2$). You will notice they are cut up like a pizza with $N$ slices, which are isosceles triangles. The vertices of the $N$-gon lie on a perfect circle. What is the equation of the circle that they lie on  in terms of the radius (0.5) and the angle $\theta$?
+\begin{framed}
+$x^2 +y^2 = 0.25$
+\vspace{6em}
+\end{framed}
+
+{\bf [1.5 points]} What is the surface normal of an arbitrary point along the barrel of the cylinder? It might be easier to think of this problem in cylindrical coordinates, and then transform your answer to cartesian after you have solved it in cylindrical coords.
+\begin{framed}
+$(\cos \theta, \sin \theta)$
+\vspace{6em}
+\end{framed}
+
+
+\section{Cone}
+{\bf [1 point]} Look at the cone with Y-axis rotation = 0 degrees, and X-axis rotation = 0 degrees. How many triangles make up one of the $segmentX$ ``sides'' of the cone when $segmentY=1$? When $segmentY=2$? 3? $n$?
+\begin{framed}
+2 * segmentsY - 1
+\vspace{10em}
+\end{framed}
+
+{\bf [1 point]} What is the surface normal at the tip of the cone? Keep in mind that a singularity does not have a normal; this implies that there will not be a unique normal at the tip of the cone. You can achieve a good shading effect by thinking of $segmentX$ vectors with their base at the tip of the cone, each pointing outward, normal from the face of the triangle associated with it along the side of the cone. Think about how OpenGL can use this information to make a realistic point at the top of the cone, and draw a simple schematic sketch illustrating the normal for one of the triangles at the tip. (As long as it is clear that you get the idea, you will receive full credit.)
+\begin{framed}
+There will be as many normals as surfaces which merge at tip.
+\vspace{8em}
+\end{framed}
+
+{\bf [1 point]} Take the two dimensional line formed by the points $(0, 0.5)$ and $(0.5, -0.5)$ and find its slope $m$.
+\begin{framed}
+m = (0.5-(-0.5))/(0-0.5) = -2
+\vspace{6em}
+\end{framed}
+
+
+{\bf [1 point]} ${{-1}\over{m}}$ is the slope perpendicular to this line. Using this slope, we
+can find the vertical and radial/horizontal components of the normal on the cone body. The radial/horizontal component is the component in the XZ plane. What is the {\bf magnitude} of this component in a normalized normal vector?
+\begin{framed}
+1/$\sqrt{5}$ = 0.447
+\vspace{6em}
+\end{framed}
+
+
+{\bf [1 point]} The component in the $y$ direction is the vertical component. What is the {\bf magnitude} of this component in a normalized normal vector?
+\begin{framed}
+0.894
+\vspace{6em}
+\end{framed}
+
+
+\section{Sphere}
+The sphere in the demo is tessellated in the latitude/longitude manner, so the points you want to calculate are straight spherical coordinates. The two parameters can be used as $\theta$ and $\phi$, or longitude and latitude. Recall, that the conversion from spherical to Cartesian coordinates is given by
+\begin{eqnarray*}
+x & = & r * \sin{\phi} * \cos{\theta}\\
+y & = & r * \cos{\phi}\\
+z & = & r * \sin{\phi}*\sin{\theta}
+\end{eqnarray*}
+{\bf [1 point]} What is the surface normal of the sphere at an arbitrary surface point $(x,y,z)$?
+\begin{framed}
+$(\frac{x}{r}, \frac{y}{r}, \frac{z}{r})$
+\vspace{6em}
+\end{framed}
+
+
+\section{How to Submit}
+
+Hand in a PDF version of your solutions using the following command:
+\begin{center}
+ {\tt provide comp175 a1-alg}
+ \end{center}
+\end{document}  
