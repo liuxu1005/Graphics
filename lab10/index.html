@@ -1,0 +1,443 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Tufts COMP 175: Water</title>
+
+
+<script type="text/javascript" src="./Tufts COMP 175_ Computer Graphics WebGL Tutorial_files/gl-matrix-min.js"></script>
+
+
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec2 canvasSize;
+
+    uniform sampler2D uSampler;
+
+    varying vec4 vColor;
+    varying highp vec2 vTexCoord;
+
+    uniform float simulationTime2;
+
+	
+    void main(void) {		
+		// Interesting wave motion on the texture--play around with it!
+		//vec4 texColor = texture2D(uSampler, vec2(vTexCoord.s+sin(simulationTime2*10.0)*0.05, vTexCoord.t+simulationTime2));
+		
+		vec4 texColor = texture2D(uSampler, vec2(vTexCoord.s, vTexCoord.t+simulationTime2));
+
+		// Small amount(90% opaque, 10% transparent) of transparency here with an alpha value of 0.90
+		gl_FragColor = vec4(texColor.rgb,0.75);
+    }
+</script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec2 aVertexTexture;
+
+    uniform float simulationTime;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+
+    varying vec4 vColor;
+    varying highp vec2 vTexCoord;
+
+    uniform sampler2D displacementMap;
+
+    void main(void) {
+
+		float waveAmplitude = 0.5;
+	
+        vec4 heightMap = texture2D(displacementMap,vTexCoord);
+		
+		float s = sin(aVertexPosition.x*2.0*3.14159 + simulationTime);
+		float t = cos(aVertexPosition.y*2.0*3.14159 + simulationTime);
+		
+		float height = s*t*1.0;
+		//gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition.x,aVertexPosition.y, aVertexPosition.z, 1.0);
+		
+		gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition.x,aVertexPosition.y, aVertexPosition.z + height, 1.0);
+		vTexCoord = aVertexTexture;
+    }
+	
+</script>
+
+
+<script type="text/javascript">
+    var gl;
+    var shaderProgram;
+	
+    var squareVertexPositionBuffer;
+    var squareVertexIndexBuffer;
+    var squareVertexTextureBuffer;
+
+    var myTexture;
+    var textureLoaded = false;
+
+    var simulationTimeLoc;
+    var simulationTimeFragLoc;
+    var simulationTime = 0.0;
+
+	// Setup WebGL
+    function initGL(canvas) {
+		try {
+			gl = canvas.getContext("webgl");
+			gl.viewportWidth = canvas.width;
+			gl.viewportHeight = canvas.height;
+		} 
+		catch (e) {
+		}
+		if (!gl) {
+			alert("cannot initialize webGL");
+		}
+	}
+	
+	// Load our shaders
+    function loadShader(id) {
+	var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+	    alert ("shader id does not exist: " + id);
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == Node.TEXT_NODE) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+	    alert ("gl createShader failed: " + id);
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+        return shader;
+    }
+	
+	// Initialize our shaders
+    function initShaders() {
+        var fragmentShader = loadShader("shader-fs");
+        var vertexShader = loadShader("shader-vs");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialize shaders");
+        }
+
+        gl.useProgram(shaderProgram);	
+    }
+
+	
+	var rows = 64;
+	var cols = 64;
+	var offset =0;
+	// Initialize Vertex buffer
+	// This is the information that will be shipped to the GPU
+	// This includes:
+	//	- Geometry that needs to be passed from our mesh
+	//	- Variables to pass to shaders
+    function initBuffers() {
+		// ================= Working Geometry =================
+
+		// (1) Create a buffer
+        squareVertexPositionBuffer = gl.createBuffer();
+        // (2) Bind the buffer
+		gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+		// (3) Define a list of Vertices
+
+		var gridUnits = 1.0;
+
+		vertices = new Array(rows*cols*2);
+		totalVerts = rows*cols*4;
+			
+		count = 0;
+		xRow = 0;
+		xCol = 0;
+		waveheight = 2.5;
+		for(i = 0; i < rows*cols; i++){
+				vertices[count] = xRow;
+				vertices[count+1] = Math.random()*waveheight;
+				vertices[count+2] = xCol;
+				
+				vertices[count+3] = xRow;
+				vertices[count+4] = Math.random()*waveheight;
+				vertices[count+5] = xCol+gridUnits;
+				
+				vertices[count+6] = xRow+gridUnits;
+				vertices[count+7] = Math.random()*waveheight;
+				vertices[count+8] = xCol;
+				
+				vertices[count+9] = xRow+gridUnits;
+				vertices[count+10] = Math.random()*waveheight;
+				vertices[count+11] = xCol+gridUnits;
+				
+				count += 12;
+				xRow+=gridUnits*1.0;
+				if(xRow>cols){
+					xRow=0;
+					xCol+=gridUnits;
+				}
+		}
+		
+		
+		// (4) Fill in the data
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        squareVertexPositionBuffer.itemSize = 3;
+        squareVertexPositionBuffer.numItems = totalVerts;	
+		
+		
+		// (1) Create a buffer
+        squareVertexIndexBuffer = gl.createBuffer();
+		// (2) Bind the buffer
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, squareVertexIndexBuffer);
+		// (3) New list of Indicies
+		// Compute indicies for the vertices
+		// This is the order that the vertices need to be rendered in the tirnalge strip.
+		// This nice image demonstrates how indicies map to traingles in a TRIANGLE_STRIP:
+		// http://www.learnopengles.com/android-lesson-eight-an-introduction-to-index-buffer-objects-ibos/ibo_with_degenerate_triangles/
+		indicies = new Array(totalVerts);
+		offset = 0;
+		for (y = 0; y < cols - 1; y++) {     
+			if (y > 0) {
+				// Degenerate begin: repeat first vertex
+				indicies[offset++] = (y * cols);
+			}
+			for (x = 0; x < rows; x++) {
+				// One part of the strip
+				indicies[offset++] = ((y * cols) + x);
+				indicies[offset++] = (((y + 1) * cols) + x);
+			}
+			if (y < cols - 2) {
+				// Degenerate end: repeat last vertex
+				indicies[offset++] = (((y + 1) * cols) + (rows - 1));
+			}
+		}	
+		// (4) Fill in the data
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indicies), gl.STATIC_DRAW);
+        squareVertexIndexBuffer.itemSize = 1;
+        squareVertexIndexBuffer.numItems = offset;
+		console.log(indicies.length);
+		console.log(offset);
+		
+		// (1) Create a buffer
+        squareVertexTextureBuffer = gl.createBuffer();
+        // (2) Bind the buffer
+		gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexTextureBuffer);
+		// (3) Define a list of Texture Coordinates	
+		texCoords = new Array(totalVerts);
+		
+		// Align the texture with the appropriate row and column
+		// The trick here is mapping each part of the texture to the grid.
+		// This means figure out which pixels belong to each triangle.
+		// 		You can imagine if we have a 10x10 image, and a 10x10 grid, then the
+		//		texture coordinates that match up to the first cell of the grid range from 0-0.1 on the x and y axis.
+		//											 the second cell of the grid would range from 0.1-0.2 (the texture coordinates) on the x and y axis.
+		//		The actual geometry may range from 7.5 to 100.7 for example, but remember that the texture coordinates(s,t) range from 0.0 to 1.0, and map to the pixels in the image.
+		count = 0;
+		xRow2= 0.0;
+		xCol2 = 0.0;
+		for(i = 0; i < rows*cols; i++){
+				texCoords[count] = xRow2;
+				texCoords[count+1] = xCol2;
+				
+				texCoords[count+2] = xRow2;
+				texCoords[count+3] = xCol2+(1.0/cols);
+				
+				texCoords[count+4] = xRow2+(1.0/rows);
+				texCoords[count+5] = xCol2;
+				
+				texCoords[count+6] = xRow2+(1.0/rows);
+				texCoords[count+7] = xCol2+(1.0/cols);
+				
+				count += 8;
+				xRow2 += 1.0/rows;
+				if(xRow2 > 1.0){
+					xRow2 = 0.0;
+					xCol2 +=1.0/cols;
+				}
+
+		}
+		
+		// (4) Fill in the data
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
+        squareVertexTextureBuffer.itemSize = 2;
+        squareVertexTextureBuffer.numItems = count;
+		
+		// ================= Working with our shader =================
+		// Send attributes to the shader
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+		shaderProgram.vertexTextureAttribute = gl.getAttribLocation(shaderProgram, "aVertexTexture");
+		gl.enableVertexAttribArray(shaderProgram.vertexTextureAttribute);
+
+        simulationTimeLoc = gl.getUniformLocation(shaderProgram, "simulationTime");
+
+        var displacementMapLoc = gl.getUniformLocation(shaderProgram, "displacementMap");
+
+    }
+
+	// Initialize a water texture
+    function initTexture() {
+		// Store in 'myTexture' an image file.
+		myTexture = gl.createTexture();
+		myTexture.image = new Image();
+		
+		// This might new for you, it's an 'anonymous Function'
+		// That's a fancy way of saying, a function that has no name.
+		// What this allows us to do is write some code that can compute a result
+		// In this case, we are loading a texture.
+		myTexture.image.onload = function () {
+			gl.bindTexture(gl.TEXTURE_2D, myTexture);
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, myTexture.image);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+				gl.bindTexture(gl.TEXTURE_2D, null);
+				textureLoaded = true;
+		}
+	
+		// Our water image texture
+		myTexture.image.src = "water.png";
+    }
+
+	// A function called in 'animateMyScene'.
+    function updateScene() {
+		simulationTime += 0.05;
+        gl.uniform1f(simulationTimeLoc,simulationTime);
+        gl.uniform1f(simulationTimeFragLoc,simulationTime/100);
+
+    }	
+	
+	// Performed on every frame
+	// 'drawScene' is responsible for drawing geometry.
+	// Any other values or data should be updated in 'updateScene' before drawing geometry
+    function drawScene() {
+		// Setup the viewport and background clear color.
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+		// If we haven't loaded our texture in 'initTexture', then 
+		// do not render any frames.
+		if (textureLoaded == false) {
+			console.log("trying to render before texture is loaded. Skip frame!");
+			return;
+		}
+	
+		//setting up the camera
+        var perspectiveMatrix = mat4.create();
+		mat4.perspective(perspectiveMatrix, 45, gl.viewportWidth / gl.viewportHeight, 0.01, 100000.0);
+
+		// 
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, perspectiveMatrix);
+
+		// Position our camera
+        var modelviewMatrix = mat4.create();  //defaults to an identity matrix
+        mat4.translate(modelviewMatrix, modelviewMatrix, [-rows/2, -10.0, -cols/3.5]);
+		// Rotate our camera so we are looking down on the water at a nice angle.
+		// You can adjust the 'rotationAngle' to your liking, or update it dynamically.
+		mat4.rotateX(modelviewMatrix, modelviewMatrix, (30)* Math.PI/180.0);
+
+		var tmpMVMatrix = mat4.create();
+
+		//drawing the water plane
+		mat4.identity(tmpMVMatrix);	
+		mat4.translate(tmpMVMatrix, modelviewMatrix, [0.0, -1.0, -35.0]);
+		
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, squareVertexIndexBuffer);
+		//gl.vertexAttribPointer(shaderProgram.squareVertexIndexBuffer, squareVertexIndexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		//adding texture...
+		gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexTextureBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexTextureAttribute, squareVertexTextureBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+		gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, myTexture);
+        shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+        
+        displacementMapLoc = gl.getUniformLocation(shaderProgram, "displacementMap");
+        gl.uniform1i(displacementMapLoc,0);
+
+		//send the modelviewMatrix to the shader
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, tmpMVMatrix);
+		
+        simulationTimeFragLoc = gl.getUniformLocation(shaderProgram, "simulationTime2");
+
+		//tell the GPU to draw the square
+        gl.drawElements(gl.TRIANGLE_STRIP, offset*2, gl.UNSIGNED_SHORT, 0);
+		//gl.drawElements(gl.LINES, offset*2, gl.UNSIGNED_SHORT, 0);
+
+    }
+
+	// Perform animation
+	// We perform a (1) javascript callback (2) update the data in our scene (3) then finally render the geometry
+	//
+    function animateMyScene() {
+		requestAnimationFrame(animateMyScene);  // javascript convention for animation
+		updateScene();							// What this is doing ia making a callback, that essentially calls this method 
+		drawScene();							// 'animateMyScene' at 60 frames per second.
+    }
+
+	// Essentially the equivalent to the C++ main() function
+	// This function is called in <body> 'onload' event.
+    function webGLStart() {
+		var canvas = document.getElementById("myCanvas");
+
+		//console.log("width: " + canvas.width + " height: " + canvas.height);
+		// Initialize our program.
+		initGL(canvas);
+		initShaders();
+		initBuffers();
+		initTexture();
+		
+		// Set the background clear color
+		gl.clearColor(0.0, 0.0, 0.0, 1.0);
+		gl.enable(gl.DEPTH_TEST);
+		
+        var canvasSize = gl.getUniformLocation(shaderProgram, "canvasSize");
+        gl.uniform2f(canvasSize, canvas.width, canvas.height);
+		
+		// Call into our draw funciton, which will then establish a callback every frame.
+		animateMyScene();
+    };
+
+	// Useful function for passing mouse information around.
+    function myMouseMoveFunc(mouseEvent) {
+		var x = mouseEvent.clientX;
+		var y = mouseEvent.clientY;
+    }
+</script>
+
+
+</head>
+
+<body onload="webGLStart();">
+    <canvas id="myCanvas" onmousemove="myMouseMoveFunc(event)" style="border: none;" width="600" height="500">
+	</canvas>
+	<br>
+
+</body></html>

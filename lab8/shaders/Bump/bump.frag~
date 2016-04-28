@@ -1,0 +1,28 @@
+//fragment shader, create a file for it named fragment.frag
+#version 120
+
+uniform sampler2D brick_image;  // The brick texture
+uniform sampler2D bump_image; // The bump map
+ 
+void main()
+{
+
+	// TODO: your job is to use the light vector (which you will pass in) and 
+	// the normal from the bump_image to create the normal mapping effect.
+   vec3 N = normalize(vec3(texture2D(bump_image, gl_TexCoord[0].st).rgb));
+   
+    vec3 c = vec3(gl_TexCoord[0].st, 0);
+    
+   vec3 l = normalize(gl_LightSource[0].position.xyz - c);
+    
+  float a = max(dot(N, l), 0);
+    
+	// gl_FragColor is a vec4 representing the final rgba values of the pixel
+	// note that the use of swizzling (.st or .rgb) is the same as using .xyz
+	// these symbols are interchangeable. 
+	// In other words, gl_TexCoord[0].xy would work the same here. Try it!
+	// Whereas if you write .rgb vs .gbr, you are switching the ordering of 
+	// of the vector. Fun stuff!!
+   
+	gl_FragColor = vec4(a * texture2D(brick_image, gl_TexCoord[0].st).rgb, 1.0);
+}

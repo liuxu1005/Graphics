@@ -1,0 +1,303 @@
+#ifndef CYLINDER_H
+#define CYLINDER_H
+
+#include "Shape.h"
+
+class Cylinder : public Shape {
+public:
+	Cylinder() {};
+	~Cylinder() {};
+	
+	void map(Point intersection, double *u, double *v) {
+	
+        if ( intersection[1]< 0.5001 && intersection[1] > 0.4999) {
+            *u = 0.5 - intersection[0];
+            *v = 0.5 + intersection[2];         
+            return;
+        }
+        if ( intersection[1] > -0.5001 && intersection[1] < -0.4999) {
+            *u = 0.5 + intersection[0];
+            *v = 0.5 + intersection[2]; 
+            return ;
+        }            
+        if (intersection[0] > 0) {
+            *u = 0.75 - atan(intersection[2]/intersection[0]) / (2 * PI);
+        } else {
+            *u = 0.25 - atan(intersection[2]/intersection[0]) / (2 * PI);
+        }
+        *v = asin(2 * intersection[1])/PI + 0.5; 
+	}
+	
+    double Intersect(Point eyePoint, Vector rayV, Matrix transformMatrix) {
+    
+        
+        Point p = transformMatrix * eyePoint;
+        Vector v = transformMatrix * rayV;
+        
+        bool changed = false;
+        double distance = -1;
+        double tmp = -1;
+        //check side
+        tmp = sideDist(p, v, 0.5);
+        if( tmp >= 0 ) {
+            if (!changed) {
+                distance = tmp;
+                changed = true; 
+            }
+            else if (distance > tmp) {
+                distance = tmp;     
+            }
+        }
+        
+        //check top
+        tmp = calDist(p, v, 0.5);
+        if( tmp >= 0 ) {
+            if (!changed) {
+                distance = tmp;
+                changed = true; 
+            }
+            else if (distance > tmp) {
+                distance = tmp;     
+            }
+        }
+        
+        //check bottom
+        tmp = calDist(p, v, -0.5);
+        if( tmp >= 0 ) {
+            if (!changed) {
+                distance = tmp;
+                changed = true; 
+            }
+            else if (distance > tmp) {
+                distance = tmp;     
+            }
+        }
+        return distance;
+    }
+	Vector findIsectNormal(Point eyePoint, Vector ray, double dist) {
+	    Point intersection = eyePoint + dist * ray;
+	    double td = intersection[0] * intersection[0] + 
+	                intersection[2] * intersection[2];
+	    if(td > 0.2499 && td < 0.25001) {
+	        Vector n(intersection[0], 0, intersection[2]);
+	        n.normalize();
+	        return n;
+	    }
+	    if ( intersection[1] < 0.5001 && intersection[1] > 0.4999) {
+	        return Vector(0, 1, 0);
+	    } 
+	    if ( intersection[1] > -0.5001 && intersection[1] < -0.4999) {
+	        return Vector(0, -1, 0);
+	    } 
+	 
+	    return Vector(0, 0, 0);
+	}
+
+	void draw() {
+	
+	    if ((m_segmentsY != vertices.size() - 1) || (m_segmentsX != vertices[0].size()))
+	        calV_N();
+	        
+	    glBegin(GL_TRIANGLES);
+	    for (int i = 0; i < m_segmentsY; i++) {
+	        int nextl = i + 1;
+	        for (int j = 0; j < m_segmentsX; j++) {
+	            
+	            int nextv = (j + 1) % m_segmentsX; 
+	            glNormal3f(normal[j][0], normal[j][1], normal[j][2]);
+	            glVertex3f(vertices[i][j][0], 
+	                       vertices[i][j][1], 
+	                       vertices[i][j][2]);
+	            glNormal3f(normal[j][0], normal[j][1], normal[j][2]);
+	            glVertex3f(vertices[nextl][j][0], 
+	                       vertices[nextl][j][1], 
+	                       vertices[nextl][j][2]);
+	            glNormal3f(normal[nextv][0], normal[nextv][1], normal[nextv][2]);
+	            glVertex3f(vertices[nextl][nextv][0], 
+	                       vertices[nextl][nextv][1], 
+	                       vertices[nextl][nextv][2]);
+	            
+	            glNormal3f(normal[j][0], normal[j][1], normal[j][2]);
+	            glVertex3f(vertices[i][j][0], 
+	                       vertices[i][j][1], 
+	                       vertices[i][j][2]);
+	            glNormal3f(normal[nextv][0], normal[nextv][1], normal[nextv][2]); 
+	            glVertex3f(vertices[nextl][nextv][0], 
+	                       vertices[nextl][nextv][1], 
+	                       vertices[nextl][nextv][2]);
+	            glNormal3f(normal[nextv][0], normal[nextv][1], normal[nextv][2]); 
+	            glVertex3f(vertices[i][nextv][0], 
+	                       vertices[i][nextv][1], 
+	                       vertices[i][nextv][2]);
+	        }
+	  
+	    } 
+	    for (int i = 0; i < m_segmentsX; i++) {
+	        int tmp = (i + 1)%m_segmentsX;
+	            
+	        glNormal3f(0.0f, -1.0f, 0.0f);
+	        glVertex3f(vertices[0][i][0], vertices[0][i][1], vertices[0][i][2]);
+	        glNormal3f(0.0f, -1.0f, 0.0f);
+	        glVertex3f(0.0f, -0.5f, 0.0f);
+	        glNormal3f(0.0f, -1.0f, 0.0f);
+	        glVertex3f(vertices[0][tmp][0], 
+	        vertices[0][tmp][1], vertices[0][tmp][2]);
+	         
+	        glNormal3f(0.0f, 1.0f, 0.0f);
+	        glVertex3f(vertices[m_segmentsY][i][0], 
+	                   vertices[m_segmentsY][i][1], 
+	                   vertices[m_segmentsY][i][2]);
+	        glNormal3f(0.0f, 1.0f, 0.0f);
+	        glVertex3f(0.0f, 0.5f, 0.0f);
+	        glNormal3f(0.0f, 1.0f, 0.0f);
+	        glVertex3f(vertices[m_segmentsY][tmp][0], 
+	                   vertices[m_segmentsY][tmp][1], 
+	                   vertices[m_segmentsY][tmp][2]);
+	  
+	    } 
+	    glEnd(); 
+	};
+
+	void drawNormal() {
+	    if ((m_segmentsY != vertices.size() - 1) || (m_segmentsX != vertices[0].size()))
+	        calV_N();
+	    
+	    glBegin(GL_LINES);
+	    glColor3f(1.0f, 0.0f, 0.0f);
+	    for (int i = 0; i <= m_segmentsY; i++) {
+	         
+	        for (int j = 0; j < m_segmentsX; j++) {
+	            
+	            Vector tmp = vertices[i][j] + normal[j]/10;
+	            glVertex3f(vertices[i][j][0], vertices[i][j][1], vertices[i][j][2]);
+	            glVertex3f(tmp[0], tmp[1], tmp[2]);
+	                    
+	        }
+	    }
+	    Vector tmp1, tmp2, tmp3, bcenter, tcenter;
+	    int top = vertices.size() - 1;
+	    tmp1[0] = 0;
+	    tmp1[1] = -0.1;
+	    tmp1[2] = 0;
+	    
+	    tmp2[0] = 0;
+	    tmp2[1] = 0.1;
+	    tmp2[2] = 0;
+	    
+	    bcenter[0] = 0;
+	    bcenter[1] = -0.5;
+	    bcenter[2] = 0;
+	    
+	    tcenter[0] = 0;
+	    tcenter[1] = 0.5;
+	    tcenter[2] = 0;
+	    
+	    bcenter = bcenter + tmp1;
+	    tcenter = tcenter + tmp2;
+	    
+	    for (int j = 0; j < m_segmentsX; j++) {
+	            
+	            tmp3 = vertices[0][j] + tmp1;
+	            glVertex3f(vertices[0][j][0], vertices[0][j][1], vertices[0][j][2]);
+	            glVertex3f(tmp3[0], tmp3[1], tmp3[2]);
+	            
+	            tmp3 = vertices[top][j] + tmp2;
+	            glVertex3f(vertices[top][j][0], vertices[top][j][1], vertices[top][j][2]);
+	            glVertex3f(tmp3[0], tmp3[1], tmp3[2]);       
+	    }
+	    glVertex3f(0, -0.5, 0);
+	    glVertex3f(bcenter[0], bcenter[1], bcenter[2]);
+	    glVertex3f(0, 0.5, 0);
+	    glVertex3f(tcenter[0], tcenter[1], tcenter[2]);
+	    
+	    glEnd();
+	};
+	
+private:
+    void calV_N() {
+    
+        Vector cur;
+        std::vector<Vector> row;
+        double unitdegree= 2*PI/m_segmentsX;
+        double yunit = 1.0f/m_segmentsY;
+        double y_coor = -0.5f;
+        vertices.clear();
+        normal.clear();
+        for (int i = 0; i <= m_segmentsY; i++) {
+	        for (int j = 0; j < m_segmentsX; j++) {
+	            cur[0] = 0.5 * cos(j * unitdegree);
+	            cur[1] = y_coor;
+	            cur[2] = 0.5 * sin(j * unitdegree);
+	            row.push_back(cur);   
+	        }
+	        y_coor += yunit;
+	        vertices.push_back(row);
+	        row.clear();
+	    }
+	    
+
+	    for (int i = 0; i < m_segmentsX; i++) {
+	    
+	        cur[0] = cos(i * unitdegree);
+	        cur[1] = 0;  
+	        cur[2] = sin(i * unitdegree);
+	        normal.push_back(cur);
+	    }
+    
+    };
+
+    double sideDist(Point eyePoint, Vector rayV, double r) {
+        double distance = -1;  
+        double y1, y2;
+            
+        
+        double A = rayV[0] * rayV[0] + rayV[2] * rayV[2];
+        double B = 2 * (eyePoint[0] * rayV[0] + eyePoint[2] * rayV[2]); 
+                    
+        double C = eyePoint[0] * eyePoint[0] + eyePoint[2] * eyePoint[2] - 0.25;
+        double tmp = B * B - 4 * A * C;   
+        
+        if (tmp >= 0) {
+            
+            double tmp1 = (-B + sqrt(tmp))/(2 * A);
+            double tmp2 = (-B - sqrt(tmp))/(2 * A);
+ 
+            y1 = eyePoint[1] + tmp1 * rayV[1];
+            y2 = eyePoint[1] + tmp2 * rayV[1];
+            if (tmp1 < 0 && tmp2 < 0)
+                distance = -1;
+            else if (tmp1 < 0 && y2 > -0.5 && y2 < 0.5)
+                distance = tmp2;
+            else if (tmp2 < 0 && y1 > -0.5 && y1 < 0.5)
+                distance = tmp1;
+            else if (y2 > -0.5 && y2 < 0.5 && y1 > -0.5 && y1 < 0.5)
+                distance = tmp1 > tmp2 ? tmp2 : tmp1;
+            else if (y2 > -0.5 && y2 < 0.5 )
+                distance = tmp2;
+            else if (y1 > -0.5 && y1 < 0.5)
+                distance = tmp1;
+        
+        
+        }
+        
+        return distance;
+    }
+    double calDist(Point eyePoint, Vector rayV, double position) {
+        double distance = -1;  
+        double x, y, z;
+        double tmp = -1;               
+   
+        tmp = (position - eyePoint[1])/rayV[1]; 
+        if (tmp < 0) return distance;
+        x = eyePoint[0] + tmp * rayV[0];
+    
+        z = eyePoint[2] + tmp * rayV[2];
+        if (x * x + z * z <= 0.25)
+            distance = tmp;  
+    
+        return distance;
+    };      
+    std::vector<std::vector<Vector> > vertices;
+    std::vector<Vector> normal; 
+};
+#endif
