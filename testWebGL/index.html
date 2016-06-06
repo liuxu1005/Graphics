@@ -1,0 +1,539 @@
+<html> 
+
+<head>
+<title>Tufts COMP 175: Computer Graphics WebGL Tutorial</title>
+<head>
+
+<script type="text/javascript" src="gl-matrix-min.js"></script>
+
+
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;  
+    //this specifies the precision for webGL. In this case, medium. 
+    //Options: lowp, mediump, highp.
+
+    uniform sampler2D uSampler;
+   
+    varying vec3 vNormal;
+    varying vec2 texCoord;
+    
+ 
+    void main(void) {
+        vec3 l = vec3(0.0, 0.0, 1.0);
+        float dp = max(0.0, dot(vNormal, l));
+ 
+ 
+            vec4 texColor = texture2D(uSampler, texCoord);
+	        gl_FragColor = texColor * dp;
+	    
+ 
+    }
+</script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    float PI = 3.1415926535897932384626433832795;
+
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+   
+    uniform vec2 canvasSize;
+    vec4 final;
+    varying vec3 vNormal;
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    varying vec2 texCoord;
+    uniform vec2 mouseLocation;
+    void main(void) {
+    vec2 off;
+    off.x = (canvasSize.x - mouseLocation.x)/canvasSize.x;
+    off.y = mouseLocation.y/canvasSize.y;
+	vNormal = aVertexNormal;
+    final = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+    texCoord = final.xy + off;
+	gl_Position = final;
+	
+    }
+</script>
+
+
+<script type="text/javascript">
+    var myFaceList = [];    //list of faces
+    var myVertexList = [];  //list of vertices
+
+    var Face = function(id) {
+	this.id = id;
+	this.vertexList = [];
+
+	this.setVertices = function (v1, v2, v3) {
+	    this.vertexList.push(v1);
+	    this.vertexList.push(v2);
+	    this.vertexList.push(v3);
+	}
+    }
+
+    var Vertex = function (id) {
+	this.id = id;
+	this.x = this.y = this.z = 0;
+
+	this.setPosition = function (x, y, z) {
+	    this.x = x;
+	    this.y = y;
+	    this.z = z;
+	}
+    }
+
+    function parse (filename, vertexList, faceList) {  //simplified parser for PLY file
+	var properties = -2;
+	var vertexCount = 0;
+	var faceCount = 0;
+
+	var rawFile = new XMLHttpRequest();
+	rawFile.open("GET", filename, true);
+	rawFile.onreadystatechange = function () {
+            if(rawFile.readyState === 4) {
+		if(rawFile.status === 200 || rawFile.status == 0) {
+                    var allText = rawFile.responseText;
+		    var lines = allText.split ('\n');
+
+		    var tmpLineIndex = 0;
+		    for (i = 0; i<lines.length; i++) {
+			var line = lines[i].trim();
+			var tokens = line.split(' ');
+			var head = tokens[0].trim();
+			if (head.toLowerCase() == "element") {
+			    // When the vertex token is spotted read in the next token
+			    // and use it to set the vertexCount and initialize vertexList
+			    if (tokens[1].trim().toLowerCase() == "vertex"){
+				vertexCount = Number(tokens[2]);
+			    }
+			    
+			    // When the face label is spotted read in the next token and 
+			    // use it to set the faceCount and initialize faceList.
+			    if (tokens[1].trim().toLowerCase() == "face"){
+				faceCount = Number(tokens[2]);
+			    }
+			}
+			else if (head.toLowerCase() == "property") {
+			    properties++;
+			}
+		    	else if (head.toLowerCase() == "end_header") {
+			    tmpLineIndex = i+1;
+			    break;
+			}
+		    }
+
+		    var id = 0;
+		    var numVertices = Number(tmpLineIndex) + Number(vertexCount);
+		    for (i = tmpLineIndex; i<numVertices; i++) {
+			var line = lines[i].trim();
+
+			var tokens = line.split(' ');
+			
+			// depending on how many properties there are set that number of 
+			// elements (x, y, z, confidence, intensity, r, g, b) (max 7) with
+			// the input given
+			
+			var v = new Vertex(id++);
+			if (properties >= 0){
+			    v.x = tokens[0].trim();
+			}
+			if (properties >= 1){
+			    v.y = tokens[1].trim();
+			}
+			if (properties >= 2){
+			    v.z = tokens[2].trim();
+			}
+			if (properties >= 3){
+			    //v.confidnece
+			}
+			if (properties >= 4){
+			    //v.intensity
+			}
+			if (properties >= 5){
+			    //v.r 
+			}
+			if (properties >= 6) {
+			    //v.g
+			}
+			if (properties >= 7) {
+			    //v.b
+			}
+
+			vertexList.push(v);
+		    }
+		    
+		    tmpLineIndex = i;
+		    id = 0;
+		    for (i=tmpLineIndex; i<tmpLineIndex+faceCount; i++) {
+			var line = lines[i].trim();
+			var tokens = line.split(' ');
+
+			var face = new Face(id++);
+			faceList.push(face);
+			
+			var count = tokens[0].trim();
+			
+			for (j=1; j<count+1; j++) {
+			    var vertexID = tokens[j];
+			    face.vertexList.push(vertexList[vertexID]);
+			}
+		    }
+
+		    var cx, cy, cz;
+		    cx = 0;
+		    cy = 0;
+		    cz = 0;
+		    for (i = 0; i < vertexList.length; i++) {
+			cx = Number(cx) + Number(vertexList[i].x);
+			cy = Number(cy) + Number(vertexList[i].y);
+			cz = Number(cz) + Number(vertexList[i].z);
+		    }
+		    cx = cx / vertexList.length;
+		    cy = cy / vertexList.length;
+		    cz = cz / vertexList.length;
+
+		    //now shift all the points so that cx, cy, cz is at the center
+		    for (i = 0; i < vertexCount; i++) {
+			vertexList[i].x -= cx;
+			vertexList[i].y -= cy;
+			vertexList[i].z -= cz;
+		    }
+		    
+		    //now find the largest value to scale it down
+		    var max = 0;
+		    for (i = 0; i < vertexCount; i++) {
+			if (Math.abs(vertexList[i].x) > max) {
+			    max = Math.abs(vertexList[i].x);
+			}
+			if (Math.abs(vertexList[i].y) > max) {
+			    max = Math.abs(vertexList[i].y);
+			}
+			if (Math.abs(vertexList[i].z) > max) {
+				max = Math.abs(vertexList[i].z);
+			}
+		    }
+		    
+		    //now scale everything, but double max so that everything is between 0.5 and -0.5
+		    max *= 2;
+		    for (i = 0; i < vertexCount; i++) {
+			vertexList[i].x /= max;
+			vertexList[i].y /= max;
+			vertexList[i].z /= max;
+		    }	
+		}
+            }
+	    initBuffers();
+	}
+	rawFile.send(null);
+    }
+
+</script>
+
+<script type="text/javascript">
+    var gl;
+    var shaderProgram;
+    var vertexPositionBuffer, vertexIndexBuffer, vertexNormalBuffer;
+    var textureLoaded = false;
+
+    function initGL(canvas) {
+	try {
+	    gl = canvas.getContext("webgl");
+	    gl.viewportWidth = canvas.width;
+	    gl.viewportHeight = canvas.height;
+	} 
+	catch (e) {
+	}
+	if (!gl) {
+	    alert("cannot initialize webGL");
+	}
+    }
+
+    function loadShader(id) {
+	var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+	    alert ("shader id does not exist: " + id);
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == Node.TEXT_NODE) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+	    alert ("gl createShader failed: " + id);
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+    function initShaders() {
+        var fragmentShader = loadShader("shader-fs");
+        var vertexShader = loadShader("shader-vs");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialize shaders");
+        }
+
+        gl.useProgram(shaderProgram);	
+    }
+
+    function initBuffers() {
+        vertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+	var vertices = [];
+	for (i=0; i<myVertexList.length; i++) {
+	    vertices.push(myVertexList[i].x);
+	    vertices.push(myVertexList[i].y);
+	    vertices.push(myVertexList[i].z);
+	}
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        vertexPositionBuffer.itemSize = 3;
+        vertexPositionBuffer.numItems = myVertexList.length;
+
+
+	vertexIndexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
+	var indices = [];
+	for (i=0; i<myFaceList.length; i++) {
+	    indices.push(myFaceList[i].vertexList[0].id);
+	    indices.push(myFaceList[i].vertexList[1].id);
+	    indices.push(myFaceList[i].vertexList[2].id);
+	}
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+	vertexIndexBuffer.itemSize = 1;
+	vertexIndexBuffer.numItems = myFaceList.length*3;  //this is a bit different, be careful
+
+	vertexNormalBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+
+	//this part is for building the vertex normals -- it looks complicated because 
+	// we are computing the "smooth" normals of a vertex, which is defined as the "average"
+	// of all the normals at a vertex. 
+	//That is, let's say that a vertex is at the intersection of 5 triangles, each triangle
+	// will have its own normal (computed using the cross product).
+	//To determine the "smooth" normal at that vertex, we add up all 5 triangle normals and then
+	// divide by 5.
+	//In order to do this, there are two steps:
+	//  1. we sum up all the normals. 
+	//  2. While we are doing that, we need to keep a counter for the number of normals at a vertex
+	//After we're done aggregating the normals, we take the "average" of the nomrals
+
+	var numNormals = new Array(myVertexList.length);
+	for (i=0; i<myVertexList.length; i++) {numNormals[i] = 0;}
+	var normals = new Array(myVertexList.length*3);
+	for (i=0; i<myVertexList.length*3; i++) {normals[i] = 0;}
+
+	for (i = 0; i < myFaceList.length * 3; i = i + 3) {
+	    var index0 = indices[i];
+	    var index1 = indices[i + 1];
+	    var index2 = indices[i + 2];
+
+	    var outputx, outputy, outputz;
+	    // using the setNormal function from below we normalize the vectors
+	    var computeNormal = function () {
+		var x1 = vertices[index0 * 3 + 0];
+		var y1 = vertices[index0 * 3 + 1];
+		var z1 = vertices[index0 * 3 + 2];
+		var x2 = vertices[index1 * 3 + 0];
+		var y2 = vertices[index1 * 3 + 1];
+		var z2 = vertices[index1 * 3 + 2];
+		var x3 = vertices[index2 * 3 + 0];
+		var y3 = vertices[index2 * 3 + 1];
+		var z3 = vertices[index2 * 3 + 2];
+
+		
+		var v1x, v1y, v1z;
+		var v2x, v2y, v2z;
+		var cx, cy, cz;
+
+		//find vector between x2 and x1
+		v1x = x1 - x2;
+		v1y = y1 - y2;
+		v1z = z1 - z2;
+
+		//find vector between x3 and x2
+		v2x = x2 - x3;
+		v2y = y2 - y3;
+		v2z = z2 - z3;
+		var 
+		//cross product v1xv2
+		
+		cx = v1y * v2z - v1z * v2y;
+		cy = v1z * v2x - v1x * v2z;
+		cz = v1x * v2y - v1y * v2x;
+		
+		//normalize
+		
+		var length = Math.sqrt(cx * cx + cy * cy + cz * cz);
+		cx = cx / length;
+		cy = cy / length;
+		cz = cz / length;
+		
+		outputx = cx;
+		outputy = cy;
+		outputz = cz;
+	    }();
+
+	    numNormals[index0]++;
+	    numNormals[index1]++;
+	    numNormals[index2]++;
+
+	    normals[index0 * 3 + 0] += outputx;
+	    normals[index0 * 3 + 1] += outputy;
+	    normals[index0 * 3 + 2] += outputz;
+
+	    normals[index1 * 3 + 0] += outputx;
+	    normals[index1 * 3 + 1] += outputy;
+	    normals[index1 * 3 + 2] += outputz;
+	    
+	    normals[index2 * 3 + 0] += outputx;
+	    normals[index2 * 3 + 1] += outputy;
+	    normals[index2 * 3 + 2] += outputz;
+	}
+
+	for (i = 0; i < myVertexList.length; i++) {
+	    normals[i * 3 + 0] = normals[i * 3 + 0] / numNormals[i];
+	    normals[i * 3 + 1] = normals[i * 3 + 1] / numNormals[i];
+	    normals[i * 3 + 2] = normals[i * 3 + 2] / numNormals[i];
+	}
+
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+        vertexNormalBuffer.itemSize = 3;
+        vertexNormalBuffer.numItems = myVertexList.length;
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+        shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+        gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+        
+
+  }
+
+    function initTexture() {
+	myTexture = gl.createTexture();
+	myTexture.image = new Image();
+	myTexture.image.onload = function () {
+	    gl.bindTexture(gl.TEXTURE_2D, myTexture);
+	    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);  //this line flips the texture image upside down
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, myTexture.image);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+
+	    textureLoaded = true;
+	}
+	myTexture.image.src = "jumbo.gif";
+    }
+
+
+    function drawScene() {
+	//due to Javascript's asynchronous behavior for file loading, we use flags to prevent rendering
+	//  when the textures have not been loaded
+	if (textureLoaded == false) {
+	    return;  
+	}
+
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	
+	//setting up the camera
+        var perspectiveMatrix = mat4.create(); //defaults to an identity matrix
+	    mat4.perspective(perspectiveMatrix, 45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, perspectiveMatrix);
+
+
+        var modelviewMatrix = mat4.create();  //defaults to an identity matrix
+        mat4.translate(modelviewMatrix, modelviewMatrix, [0.0, 0.0, -1]);
+
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, modelviewMatrix);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, vertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+	gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, myTexture);
+        shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
+        gl.drawElements(gl.TRIANGLES, vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+        
+        
+    }
+
+    function animateMyScene() {
+	requestAnimationFrame(animateMyScene);  //javascript convention for animation
+	drawScene();
+    }
+
+    function webGLStart() {
+	var canvas = document.getElementById("myCanvas");
+	initGL(canvas);
+	initShaders();
+	initTexture();
+
+    var canvasSize = gl.getUniformLocation(shaderProgram, "canvasSize");
+    gl.uniform2f(canvasSize, canvas.width, canvas.height);
+	parse("bunny.ply", myVertexList, myFaceList);
+
+	//initBuffers() would normally be called here, but it's now called from within 
+	// parse() because of the asynchronous nature of javascript file loading
+	//initBuffers();   
+
+
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);  //set up the background color (black)
+	gl.enable(gl.DEPTH_TEST); 
+
+	animateMyScene();
+    };
+    
+    function myMouseMoveFunc(mouseEvent) {
+	var x = mouseEvent.clientX;
+	var y = mouseEvent.clientY;
+
+        var mouseLocation = gl.getUniformLocation(shaderProgram, "mouseLocation");
+        gl.uniform2f(mouseLocation, x, y);
+    }
+
+</script>
+
+
+</head>
+
+<body onload="webGLStart();">
+    <canvas id="myCanvas" onmousemove="myMouseMoveFunc(event)"  style="border: none;" width="500" height="500"></canvas>
+</body>
+</html>
+
